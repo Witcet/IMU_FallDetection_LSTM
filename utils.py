@@ -8,6 +8,10 @@ from scipy import signal
 TIME_STEPS = 180
 
 
+def getsub(dir_path=""):
+    return [os.path.join(dir_path, sd) for sd in os.listdir(dir_path)]
+
+
 class Data:
     def __init__(self, features, labels, onehot=True):
         self.features = features
@@ -35,7 +39,7 @@ class Data:
         labels = self.labels
 
         train_size = int(features.shape[0] * 0.8)
-        valid_size = int(features.shape[0] * 0.9)
+        valid_size = int(features.shape[0] * 0.95)
 
         if test:
             pass
@@ -65,6 +69,12 @@ class Data:
             yield feature_batch, label_batch
 
 
+class MixData:
+    def __init__(self, features, labels):
+        print("Mixing dataset above...")
+        self.dataset = Data(features, labels, onehot=False)
+
+
 class SimuDataLoader:
     def __init__(self, path=""):
         self.path = path
@@ -77,7 +87,7 @@ class SimuDataLoader:
 
     def _load_data(self):
         print("Loading dataset...")
-        subdirs = list(filter(os.path.isdir, [os.path.join(self.path, sd) for sd in os.listdir(self.path)]))
+        subdirs = getsub(self.path)
 
         for subject in subdirs:
             print(subject)
@@ -171,14 +181,14 @@ class RealDataLoader:
 
     def _load_data(self):
         print("Loading dataset...")
-        subdirs = list(filter(os.path.isdir, [os.path.join(self.path, sd) for sd in os.listdir(self.path)]))
+        subdirs = getsub(self.path)
 
         ADLs = []
         FALLs = []
         for i in range(len(subdirs)):
             subdir = subdirs[i]
             print(subdir)
-            class_dirs = self._get_subdirs(subdir)
+            class_dirs = getsub(subdir)
             for class_dir in class_dirs:
                 if class_dir.endswith("ADL"):
                     ADLs.append(class_dir)
@@ -186,8 +196,206 @@ class RealDataLoader:
                     FALLs.append(class_dir)
                 else:
                     print("Error! Wrong motion type.")
-        self._process_catogory(ADLs)
-        self._process_catogory(FALLs)
+        self._process_category(ADLs)
+        self._process_category(FALLs)
 
-    def _process_catogory(self, dirs=[]):
-        pass  # TODO
+    def _process_category(self, dirs=[]):
+        for i in tqdm(range(len(dirs)), file=sys.stdout):
+            dir_ = dirs[i]
+            subdirs = getsub(dir_)
+
+            for subdir in subdirs:
+                mot_type = os.path.basename(os.path.normpath(subdir))
+                if mot_type not in self.classes:
+                    continue
+
+                trials = getsub(subdir)
+                for each_trial in trials:
+                    data = self._prepare_dataset_from_dir(each_trial)
+                    if data.shape[0] == 0:
+                        continue
+                    try:
+                        self.dataset[mot_type] = np.concatenate((self.dataset[mot_type], data), axis=0)
+                    except KeyError:
+                        self.dataset[mot_type] = data
+
+    def _prepare_dataset_from_dir(self, txt_folder=""):
+        imu_files = getsub(txt_folder)
+
+        # ARG 指定实验中IMU传感器的贴放部位，与txt文件一一对应
+        imu_body = {'340540.txt': 'neck',
+                    '340539.txt': 'chest',
+                    '340537.txt': 'wrist',
+                    '340535.txt': 'waist',
+                    '340527.txt': 'thigh',
+                    '340506.txt': 'shank'}
+        body_data = {}
+        for imu_file in imu_files:
+            imu_index = os.path.basename(imu_file)
+            body_data[imu_body.get(imu_index)] = self._get_imudata(imu_file)
+
+        pertrial_imudata = [[]]
+
+        # ARG 选择哪些部位的IMu数据
+        # for segment in ["shank"]:
+        for segment in ["chest", "waist", "thigh", "shank"]:
+            segment_data = body_data[segment]
+            try:
+                pertrial_imudata = np.concatenate((pertrial_imudata, segment_data), axis=1)
+            except ValueError:
+                pertrial_imudata = segment_data
+
+        pertrial_imudata = np.expand_dims(pertrial_imudata, axis=0)
+        return pertrial_imudata
+
+    def _get_imudata(self, txt_name):
+        df = pd.read_csv(txt_name, delimiter=r'\s+', header=4)
+        df = df.fillna(method='pad')
+        df = df.fillna(method='bfill')
+
+        # ARG 选择IMU的加速度、角速度数据
+        # pick_cols = ["Acc_X", "Acc_Y", "Acc_Z", "Gyr_X", "Gyr_Y", "Gyr_Z"]
+        pick_cols = ["Acc_X", "Acc_Y", "Acc_Z"]
+
+        df = df[pick_cols]
+        imudata = df.values
+        interpolite_1d = lambda col: signal.resample(col, TIME_STEPS)
+        new_imudata = np.apply_along_axis(interpolite_1d, 0, imudata)
+
+        # origin_num = imudata.shape[0]
+        # new_num = new_imudata.shape[0]
+        # during = origin_num / 25
+        # t1 = np.arange(0, during, 0.04)
+        # t2 = np.arange(0, during, 0.04 * origin_num / new_num)
+        # for i in range(6):
+        #     plt.plot(t1, imudata[:, i], 'r', t2, new_imudata[:, i], 'g')
+        #     plt.show()
+
+        return new_imudata
+
+    def _format_dataset(self):
+        print("Formatting dataset...")
+        readings = None
+        labels = []
+        for key in self.dataset:
+            if key in self.FALL_TYPES:
+                mot_type_num = 1
+            else:
+                mot_type_num = 0
+            features = self.dataset[key]
+            num_samples = features.shape[0]
+            labels.extend(num_samples * [mot_type_num])
+            try:
+                readings = np.concatenate((readings, features), axis=0)
+            except  ValueError:
+                readings = features
+        labels = np.array(labels)
+        self.dataset = Data(readings, labels)
+
+
+class XsenDataLoader:
+    def __init__(self, path='', sensor_num=7):
+        self.path = path
+        self.sensor_num = sensor_num
+        self.dataset = {}
+        self._load_data()
+        self._format_dataset()
+
+    def _load_data(self):
+        print("Loading dataset...")
+        subdirs = getsub(self.path)
+
+        ADLs = []
+        FALLs = []
+        for i in range(len(subdirs)):
+            subdir = subdirs[i]
+            print(subdir)
+            class_dirs = getsub(subdir)
+            for class_dir in class_dirs:
+                if class_dir.endswith("ADL"):
+                    ADLs = [os.path.join(class_dir, txt_file) for txt_file in os.listdir(class_dir)]
+                elif class_dir.endswith("FALLS"):
+                    FALLs = [os.path.join(class_dir, txt_file) for txt_file in os.listdir(class_dir)]
+                else:
+                    print("Error! Wrong motion type.")
+
+        self._process_category(ADLs, "ADL")
+        self._process_category(FALLs, "FALL")
+
+    def _process_category(self, dirs=[], class_=""):
+        if len(dirs) % self.sensor_num != 0:
+            print("Error! The number of TXT files is incorrect.")
+            return
+
+        trial_nums = len(dirs) / self.sensor_num
+
+        for i in range(trial_nums):
+            each_test = dirs[self.sensor_num * i:self.sensor_num * (i + 1)]
+            data = self._prepare_dataset_from_dir(each_test)
+            if data.shape[0] == 0:
+                continue
+            try:
+                self.dataset[class_] = np.concatenate((self.dataset[class_], data), axis=0)
+            except KeyError:
+                self.dataset[class_] = data
+
+    def _prepare_dataset_from_dir(self, each_test):
+        # ARG: 佩戴Xsens传感器采集的imu数据
+        imu_body = {'175': 'chest',
+                    '1D1': 'waist',
+                    '203': 'thigh',
+                    '205': 'shank',
+                    '210': 'thigh_l',
+                    '2C5': 'shank_l',
+                    '206': 'hand_l'}
+        body_data = {}
+        for imu_file in each_test:
+            imu_index = (os.path.basename(imu_file))[-7:-4]
+            body_data[imu_body.get(imu_index)] = self._get_imudata(imu_file)
+
+        pertrial_imudata = [[]]
+
+        # ARG: 选择哪些位置的IMU数据
+        for segment in ["chest", "waist", "thigh", "shank"]:
+            segment_data = body_data[segment]
+            try:
+                pertrial_imudata = np.concatenate((pertrial_imudata, segment_data), axis=1)
+            except ValueError:
+                pertrial_imudata = segment_data
+
+        pertrial_imudata = np.expand_dims(pertrial_imudata, axis=0)
+        return pertrial_imudata
+
+    def _get_imudata(self, txt_name):
+        df = pd.read_csv(txt_name, delimiter=r'\s+', header=4)
+        df = df.fillna(method="pad")
+        df = df.fillna(method="bfill")
+
+        # ARG 选择IMU的加速度、角速度数据
+        # pick_cols = ["Acc_X", "Acc_Y", "Acc_Z", "Gyr_X", "Gyr_Y", "Gyr_Z"]
+        pick_cols = ["Acc_X", "Acc_Y", "Acc_Z"]
+
+        df = df[pick_cols]
+        imudata = df.values
+        interpolite_1d = lambda col: signal.resample(col, TIME_STEPS)
+        new_imudata = np.apply_along_axis(interpolite_1d, 0, imudata)
+        return new_imudata
+
+    def _format_dataset(self):
+        print("Formating dataset...")
+        readings = None
+        labels = []
+        for key in self.dataset:
+            if key == "FALL":
+                mot_type_num = 1
+            else:
+                mot_type_num = 0
+            features = self.dataset[key]
+            num_samples = features.shape[0]
+            labels.extend(num_samples * [mot_type_num])
+            try:
+                readings = np.concatenate((readings, features), axis=0)
+            except ValueError:
+                readings = features
+        labels = np.array(labels)
+        self.dataset = Data(readings, labels)
