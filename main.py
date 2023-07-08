@@ -66,6 +66,59 @@ class FallDetector:
         correct = tf.equal(pred_classes,actual_classes)
         self.accuracy=tf.reduce_mean(tf.cast(correct,tf.float32),name='accuracy')
 
+    def define_loss(self):
+        self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.y,logits=self.prefiction))
+        tf.summary.scalar("Cross-entropy-loss",self.loss)
+
+    def define_optimizer(self):
+        optimizer=tf.train.AdamOptimizer(0.0001)
+        update_ops=tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            self.train_step=optimizer.minimize(self.loss)
+
+    def _lstm_layer(self,inputs,num_units,scope,cell_type="LSTM"):
+        with tf.variable_scope(scope):
+            if cell_type=="LSTM":
+                lstm_cell=tf.nn.rnn_cell.LSTMCell(num_units)
+            elif cell_type=="GRU":
+                lstm_cell = tf.nn.rnn_cell.GRUCell(num_units)
+            else:
+                raise NotImplementedError("{} type not implemented.".format(cell_type))
+
+            outputs,states=tf.nn.static_rnn(lstm_cell,inputs,dtype=tf.float32)
+        return outputs
+
+    def _dense_layer(self,inputs,num_units,scope,activation=None):
+        with tf.variable_scope(scope):
+            w=tf.get_variable("w",shape=(inputs.shape[-1].value,num_units))
+            b=tf.get_variable("b",shape=(num_units),initializer=tf.constant_initializer(0.1))
+
+            out=tf.matmul(inputs,w)+b
+            if activation is not None:
+                out=activation(out)
+
+        return out
+
+    def train(self,path,epochs=50,log_step=10,resume=False,dataloader=""):
+        print("Beginning the training process...")
+
+        loader_class =  {"simu":SimuDataLoader(path),
+                        "real":RealDataLoader(path),
+                        "xsen":XsenDataLoader(path)}
+
+        if not path:
+            if not os.path.isfile("train_dataset.pkl"):
+                print("Error!No dataset to load.")
+
+        if os.path.isfile("train_dataset.pkl"):
+            data=pickle.load(open("train_dataset.pkl",'rb'))
+        elif dataloader in loader_class.keys():
+            data=loader_class.get(dataloader)
+            pickle.dump(data,open("train_dataset.pkl",'wb'))
+        else:
+            print("Error!Unknown data loader.")
+
+
 
 
 
