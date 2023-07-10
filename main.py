@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import warnings
-from utils import RealDataLoader, SimuDataLoader, XsenDataLoader, MobiFallDataLoader, MixData
+from utils import RealDataLoader, SimuDataLoader, XsenDataLoader, MixData
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 import tensorflow as tf
@@ -108,8 +108,7 @@ class FallDetector:
 
         loader_map = {"simu": SimuDataLoader,
                       "real": RealDataLoader,
-                      "xsen": XsenDataLoader,
-                      "mobifall": MobiFallDataLoader}
+                      "xsen": XsenDataLoader}
 
         if dataloader in loader_map.keys():
             data = loader_map[dataloader](path)
@@ -243,24 +242,20 @@ class FallDetector:
 if __name__ == "__main__":
     fallDetector = FallDetector(16, 3, 180, 2)
 
-    # # 如果不需要重新加载训练数据，注释掉下面两行
+    # 如果不需要重新加载训练数据，注释掉下面两行
     # train_path = r"D:\OpenSim\Datasetall\Video_simu_dataset"
     # fallDetector.load_dataset(train_path,dataloader="simu",use_type="train")
-    #
-    # # 如果不需要重新训练，注释掉下面一行
-    # fallDetector.train(epochs=50, resume=False)
+
+    # 如果不需要重新训练，注释掉下面一行
+    fallDetector.train(epochs=50, resume=False)
 
     # 如果不需要重新加载测试数据，注释掉下面两行
     # test_path = r"D:\OpenSim\Datasetall\Thesis_Fall_Dataset"
     # fallDetector.load_dataset(test_path,dataloader="real",use_type="test")
 
-    test_path = "D:/OpenSim/Datasetall/MobiFall_Dataset_v2.0"
-    fallDetector.load_dataset(test_path, dataloader="mobifall", use_type="test")
-
     fallDetector.test()
 
 # # 真实数据与仿真数据混合，训练模型
-# # 另一种方法是先用仿真数据集训练模型，再用真实数据集训练模型（resume=True）
 # if __name__=="__main__":
 #
 #     fallDetector = FallDetector(16, 12, 180, 2)
