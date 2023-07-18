@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 import warnings
-from utils import RealDataLoader, SimuDataLoader, XsenDataLoader, MixData
+from utils import RealDataLoader, SimuDataLoader, ZhjiDataLoader, MixData
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 import tensorflow as tf
@@ -108,7 +108,7 @@ class FallDetector:
 
         loader_map = {"simu": SimuDataLoader,
                       "real": RealDataLoader,
-                      "xsen": XsenDataLoader}
+                      "zhji": ZhjiDataLoader}
 
         if dataloader in loader_map.keys():
             data = loader_map[dataloader](path)
@@ -221,6 +221,10 @@ class FallDetector:
 
             avg_loss = []
             avg_accuracy = []
+            TP = 0
+            TN = 0
+            FN = 0
+            FP = 0
             for batch_x, batch_y in data.dataset.next_batch(batch_size=16, test=True):
                 pred, loss_, acc_ = session.run([self.prediction,
                                                  self.loss,
@@ -232,47 +236,76 @@ class FallDetector:
                                                 })
                 avg_loss.append(loss_)
                 avg_accuracy.append(acc_)
+                # Fall:01 ADL:10
+                for batch in range(16):  # batch_size=16
+                    if (batch_y[batch][0] == 0):  # sample = Fall
+                        if (pred[batch][0] < pred[batch][1]):  # pred = Fall
+                            TP += 1
+                        else:
+                            FN += 1
+                    else:  # sample = not Fall
+                        if (pred[batch][0] < pred[batch][1]):  # pred = Fall
+                            FP += 1
+                        else:
+                            TN += 1
+
             avg_loss = sum(avg_loss) / len(avg_loss)
             avg_accuracy = sum(avg_accuracy) / len(avg_accuracy)
+
+            precision=TP/(TP+FP)
+            recall = TP / ( TP + FN )
+            F1 = ( 2* precision * recall ) / (precision + recall)
+
             print("Test complete!")
             print("Average loss on test set: {}".format(avg_loss))
             print("Average accuracy of test dataset: {}".format(avg_accuracy))
+            print('precision:', precision)
+            print('recall:', recall)
+            print('F1:', F1)
+            print('TN', TN)
+            print('FP', FP)
+            print('TP', TP)
+            print('FN', FN)
 
 
 if __name__ == "__main__":
-    fallDetector = FallDetector(16, 3, 180, 2)
+    fallDetector = FallDetector(16, 3, 240, 2)
 
     # 如果不需要重新加载训练数据，注释掉下面两行
-    # train_path = r"D:\OpenSim\Datasetall\Video_simu_dataset"
-    # fallDetector.load_dataset(train_path,dataloader="simu",use_type="train")
+    # train_path=r"D:\OpenSim\Datasetall\Video_simu_dataset"
+    train_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\sub6mot29_simu"
+    fallDetector.load_dataset(train_path,dataloader="simu",use_type="train")
 
     # 如果不需要重新训练，注释掉下面一行
     fallDetector.train(epochs=50, resume=False)
 
     # 如果不需要重新加载测试数据，注释掉下面两行
     # test_path = r"D:\OpenSim\Datasetall\Thesis_Fall_Dataset"
-    # fallDetector.load_dataset(test_path,dataloader="real",use_type="test")
+    test_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
+    fallDetector.load_dataset(test_path,dataloader="zhji",use_type="test")
 
     fallDetector.test()
 
 # # 真实数据与仿真数据混合，训练模型
 # if __name__=="__main__":
 #
-#     fallDetector = FallDetector(16, 12, 180, 2)
+#     fallDetector = FallDetector(16, 3, 240, 2)
 #
-#     simu_path=r"D:\OpenSim\Datasetall\Video_simu_dataset"
-#     xsen_path=r"D:\OpenSim\Datasetall\OUR_Fall_Dataset\IMUData\RFD_0"
+#     simu_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\sub6mot29_simu"
+#     zhji_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_train_jmx"
 #
 #     simu_data=SimuDataLoader(simu_path)
-#     xsen_data=XsenDataLoader(xsen_path)
+#     zhji_data=ZhjiDataLoader(zhji_path)
+#     print(simu_data.dataset.labels.shape[0])
+#     print(zhji_data.dataset.labels.shape[0])
 #
 #     simu_feature=simu_data.dataset.features
 #     simu_label=simu_data.dataset.labels
-#     xsen_feature=xsen_data.dataset.features
-#     xsen_label=xsen_data.dataset.labels
+#     zhji_feature=zhji_data.dataset.features
+#     zhji_label=zhji_data.dataset.labels
 #
-#     features=np.concatenate((simu_feature,xsen_feature),axis=0)
-#     labels=np.concatenate((simu_label,simu_label),axis=0)
+#     features=np.concatenate((simu_feature,zhji_feature),axis=0)
+#     labels=np.concatenate((simu_label,zhji_label),axis=0)
 #
 #     mix_data=MixData(features,labels)
 #
@@ -280,6 +313,6 @@ if __name__ == "__main__":
 #
 #     fallDetector.train(epochs=50)
 #
-#     test_path = r"D:\OpenSim\Datasetall\Thesis_Fall_Dataset"
-#     fallDetector.load_dataset(test_path,dataloader="real",use_type="test")
+#     # test_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
+#     # fallDetector.load_dataset(test_path,dataloader="zhji",use_type="test")
 #     fallDetector.test()
