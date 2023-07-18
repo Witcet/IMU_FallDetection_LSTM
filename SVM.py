@@ -93,7 +93,7 @@ class FallDetector:
 
 
 if __name__ == "__main__":
-    fallDetector = FallDetector(16, 12, 240, 2)
+    fallDetector = FallDetector(16, 3, 240, 2)
 
     # 如果不需要重新加载训练数据，注释掉下面两行
     # train_path = r"D:\pycharm\PycharmProjects\LSTM\Video_simu_dataset"

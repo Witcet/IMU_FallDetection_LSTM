@@ -18,38 +18,36 @@
 #         except ValueError:
 #             print(f"无效的文件名: {filename}")
 
-import os
+import pandas as pd
+import matplotlib.pyplot as plt
+
+filename="MT_01210CD7-063-000_00B4D206_101"
+
+# 读取文本文件，跳过文件头
+df = pd.read_csv(f'image/{filename}.txt', delim_whitespace=True, skiprows=4)
+
+# 提取需要的字段
+fields = ['Acc_X', 'Acc_Y', 'Acc_Z']
+data = df[fields]
+
+# 绘制曲线
+for field in fields:
+    plt.plot(df['PacketCounter'], data[field], label=field)
+
+# 添加图例、标签等
+plt.legend()
+plt.xlabel('PacketCounter')
+plt.title('Sensor Data')
+
+# 保存图像
+plt.savefig(f'image/{filename}.png')
+
+# 显示图形
+plt.show()
 
 
-def rename_mtb_files(folder_path):
-    # 遍历文件夹A下的所有子文件夹
-    for root, dirs, files in os.walk(folder_path):
-        for dir_name in dirs:
-            dir_path = os.path.join(root, dir_name)
-
-            # 在每个子文件夹中查找mtb文件并进行重命名
-            for file_name in os.listdir(dir_path):
-                if file_name.endswith('.mtb'):
-                    file_path = os.path.join(dir_path, file_name)
-                    new_file_name = file_name[:-7] + '000.mtb'  # 修改文件名（除去扩展名）的最后三位
-                    new_file_path = os.path.join(folder_path, new_file_name)
-
-                    # 检查新文件名是否已存在，避免覆盖已有文件
-                    i = 1
-                    while os.path.exists(new_file_path):
-                        new_file_name = file_name[:-7] + f'{i:03}.mtb'
-                        new_file_path = os.path.join(folder_path, new_file_name)
-                        i += 1
-
-                    # 重命名mtb文件
-                    os.rename(file_path, new_file_path)
 
 
-# 指定文件夹A的路径
-folder_A_path = r'D:\OpenSim\Datasetall\zzhangjiangdata\fall_detection\MTB\heleshen'
-
-# 调用函数进行重命名操作
-rename_mtb_files(folder_A_path)
 
 
 

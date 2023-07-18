@@ -264,8 +264,23 @@ class FallDetector:
             print('F1:', F1)
             print('TN', TN)
             print('FP', FP)
+            print('ADL_error',FP/(TN+FP))
             print('TP', TP)
             print('FN', FN)
+            print('FALL_error',FN/(TP+FN))
+            print()
+            print(avg_accuracy)
+            print(precision)
+            print(recall)
+            print(F1)
+            print(TN)
+            print(FP)
+            print(FP/(TN+FP))
+            print(TP)
+            print(FN)
+            print(FN/(TP+FN))
+
+
 
 
 if __name__ == "__main__":
@@ -273,16 +288,17 @@ if __name__ == "__main__":
 
     # 如果不需要重新加载训练数据，注释掉下面两行
     # train_path=r"D:\OpenSim\Datasetall\Video_simu_dataset"
-    train_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\sub6mot29_simu"
+    # train_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\sub6mot29_simu"
+    train_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\simu_imu_thesis_sub10"
     fallDetector.load_dataset(train_path,dataloader="simu",use_type="train")
 
     # 如果不需要重新训练，注释掉下面一行
     fallDetector.train(epochs=50, resume=False)
 
-    # 如果不需要重新加载测试数据，注释掉下面两行
-    # test_path = r"D:\OpenSim\Datasetall\Thesis_Fall_Dataset"
-    test_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
-    fallDetector.load_dataset(test_path,dataloader="zhji",use_type="test")
+    # 如果不需要重新加载测试数据，注释掉下面两行l
+    test_path = r"D:\OpenSim\Datasetall\Thesis_Fall_Dataset"
+    # test_path=r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
+    fallDetector.load_dataset(test_path,dataloader="real",use_type="test")
 
     fallDetector.test()
 
@@ -313,6 +329,6 @@ if __name__ == "__main__":
 #
 #     fallDetector.train(epochs=50)
 #
-#     # test_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
-#     # fallDetector.load_dataset(test_path,dataloader="zhji",use_type="test")
+#     test_path = r"D:\OpenSim\Datasetall\zzhangjiangdata\real_for_test"
+#     fallDetector.load_dataset(test_path,dataloader="zhji",use_type="test")
 #     fallDetector.test()

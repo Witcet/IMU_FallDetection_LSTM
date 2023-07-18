@@ -142,7 +142,7 @@ class SimuDataLoader:
 
                 try:
                     self.dataset[mot_type] = np.concatenate((self.dataset[mot_type], each_data), axis=0)
-                except KeyError:
+                except (KeyError,ValueError):
                     self.dataset[mot_type] = each_data
 
     def _format_dataset(self):
@@ -320,8 +320,9 @@ class ZhjiDataLoader:
                            "904", "907", "908",
                            "909", "910", "911",
                            "912", "913", "915",
-                           "905", "906", "914", "916",
-                           "917", "918", "919", "920"]
+                           "905", "906", "914", "916"]
+        # self.ADL_TYPES=["816"]
+        # self.FALL_TYPES=["908"]
         self.classes = self.ADL_TYPES + self.FALL_TYPES
         self.dataset = {}
 
@@ -366,7 +367,7 @@ class ZhjiDataLoader:
                         continue
                     try:
                         self.dataset[mot_type] = np.concatenate((self.dataset[mot_type], data), axis=0)
-                    except KeyError:
+                    except (KeyError,ValueError) :
                         self.dataset[mot_type] = data
 
     def _prepare_dataset_from_dir(self, txt_folder=""):
